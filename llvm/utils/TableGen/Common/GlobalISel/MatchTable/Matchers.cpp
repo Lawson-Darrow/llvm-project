@@ -487,7 +487,7 @@ StringRef RuleMatcher::getOpcode() const {
 }
 
 bool RuleMatcher::recordsOperand() const {
-  return matchersRecordOperand(Matchers);
+  return !usesRecordOperand() || matchersRecordOperand(Matchers);
 }
 
 LLTCodeGen RuleMatcher::getFirstConditionAsRootType() const {
