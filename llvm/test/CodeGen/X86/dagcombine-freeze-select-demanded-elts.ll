@@ -43,3 +43,58 @@ define i32 @freeze_select_scalar_demanded(i1 %c, <2 x i32> %a, <2 x i32> %b, <2 
   %ext = extractelement <4 x i32> %fr, i64 0
   ret i32 %ext
 }
+
+define i32 @freeze_vselect_demanded(<4 x i32> %csrc, <2 x i32> %a, <2 x i32> %b, <2 x i32> %e, <2 x i32> %d) nounwind {
+  ; COMBINE-LABEL: name: freeze_vselect_demanded
+  ; COMBINE: bb.0 (%ir-block.0):
+  ; COMBINE-NEXT:   liveins: $xmm0, $xmm1, $xmm3
+  ; COMBINE-NEXT: {{  $}}
+  ; COMBINE-NEXT:   [[COPY:%[0-9]+]]:vr128 = COPY $xmm3
+  ; COMBINE-NEXT:   [[COPY1:%[0-9]+]]:vr128 = COPY $xmm1
+  ; COMBINE-NEXT:   [[COPY2:%[0-9]+]]:vr128 = COPY $xmm0
+  ; COMBINE-NEXT:   [[V_SET0_:%[0-9]+]]:vr128 = V_SET0
+  ; COMBINE-NEXT:   [[PCMPGTDrr:%[0-9]+]]:vr128 = PCMPGTDrr [[COPY2]], killed [[V_SET0_]]
+  ; COMBINE-NEXT:   [[PANDNrr:%[0-9]+]]:vr128 = PANDNrr [[PCMPGTDrr]], [[COPY]]
+  ; COMBINE-NEXT:   [[PANDrr:%[0-9]+]]:vr128 = PANDrr [[COPY1]], [[PCMPGTDrr]]
+  ; COMBINE-NEXT:   [[PORrr:%[0-9]+]]:vr128 = PORrr [[PANDrr]], killed [[PANDNrr]]
+  ; COMBINE-NEXT:   [[MOVPDI2DIrr:%[0-9]+]]:gr32 = MOVPDI2DIrr killed [[PORrr]]
+  ; COMBINE-NEXT:   $eax = COPY [[MOVPDI2DIrr]]
+  ; COMBINE-NEXT:   RET 0, $eax
+  ;
+  ; NOCOMBINE-LABEL: name: freeze_vselect_demanded
+  ; NOCOMBINE: bb.0 (%ir-block.0):
+  ; NOCOMBINE-NEXT:   liveins: $xmm0, $xmm1, $xmm2, $xmm3, $xmm4
+  ; NOCOMBINE-NEXT: {{  $}}
+  ; NOCOMBINE-NEXT:   [[COPY:%[0-9]+]]:vr128 = COPY $xmm4
+  ; NOCOMBINE-NEXT:   [[COPY1:%[0-9]+]]:vr128 = COPY $xmm3
+  ; NOCOMBINE-NEXT:   [[COPY2:%[0-9]+]]:vr128 = COPY $xmm2
+  ; NOCOMBINE-NEXT:   [[COPY3:%[0-9]+]]:vr128 = COPY $xmm1
+  ; NOCOMBINE-NEXT:   [[COPY4:%[0-9]+]]:vr128 = COPY $xmm0
+  ; NOCOMBINE-NEXT:   [[V_SET0_:%[0-9]+]]:vr128 = V_SET0
+  ; NOCOMBINE-NEXT:   [[PADDDrm:%[0-9]+]]:vr128 = nsw PADDDrm [[COPY4]], $rip, 1, $noreg, %const.0, $noreg :: (load (s128) from constant-pool)
+  ; NOCOMBINE-NEXT:   [[PUNPCKLQDQrr:%[0-9]+]]:vr128 = PUNPCKLQDQrr [[COPY4]], killed [[PADDDrm]]
+  ; NOCOMBINE-NEXT:   [[PCMPGTDrr:%[0-9]+]]:vr128 = PCMPGTDrr [[PUNPCKLQDQrr]], killed [[V_SET0_]]
+  ; NOCOMBINE-NEXT:   [[PADDDrm1:%[0-9]+]]:vr128 = nsw PADDDrm [[COPY2]], $rip, 1, $noreg, %const.1, $noreg :: (load (s128) from constant-pool)
+  ; NOCOMBINE-NEXT:   [[PSUBDrm:%[0-9]+]]:vr128 = nsw PSUBDrm [[COPY]], $rip, 1, $noreg, %const.2, $noreg :: (load (s128) from constant-pool)
+  ; NOCOMBINE-NEXT:   [[PUNPCKLQDQrr1:%[0-9]+]]:vr128 = PUNPCKLQDQrr [[COPY3]], killed [[PADDDrm1]]
+  ; NOCOMBINE-NEXT:   [[PUNPCKLQDQrr2:%[0-9]+]]:vr128 = PUNPCKLQDQrr [[COPY1]], killed [[PSUBDrm]]
+  ; NOCOMBINE-NEXT:   [[PANDNrr:%[0-9]+]]:vr128 = PANDNrr [[PCMPGTDrr]], killed [[PUNPCKLQDQrr2]]
+  ; NOCOMBINE-NEXT:   [[PANDrr:%[0-9]+]]:vr128 = PANDrr [[PUNPCKLQDQrr1]], [[PCMPGTDrr]]
+  ; NOCOMBINE-NEXT:   [[PORrr:%[0-9]+]]:vr128 = PORrr [[PANDrr]], killed [[PANDNrr]]
+  ; NOCOMBINE-NEXT:   [[COPY5:%[0-9]+]]:vr128 = COPY killed [[PORrr]]
+  ; NOCOMBINE-NEXT:   [[MOVPDI2DIrr:%[0-9]+]]:gr32 = MOVPDI2DIrr killed [[COPY5]]
+  ; NOCOMBINE-NEXT:   $eax = COPY [[MOVPDI2DIrr]]
+  ; NOCOMBINE-NEXT:   RET 0, $eax
+  %safe.c = icmp sgt <4 x i32> %csrc, zeroinitializer
+  %poisonable.c.val = add nsw <4 x i32> %csrc, <i32 2147483647, i32 2147483647, i32 2147483647, i32 2147483647>
+  %poisonable.c = icmp sgt <4 x i32> %poisonable.c.val, zeroinitializer
+  %cond = shufflevector <4 x i1> %safe.c, <4 x i1> %poisonable.c, <4 x i32> <i32 0, i32 1, i32 4, i32 5>
+  %poisonable.b = add nsw <2 x i32> %b, <i32 2147483647, i32 2147483647>
+  %poisonable.d = sub nsw <2 x i32> %d, <i32 -2147483648, i32 -2147483648>
+  %lhs = shufflevector <2 x i32> %a, <2 x i32> %poisonable.b, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %rhs = shufflevector <2 x i32> %e, <2 x i32> %poisonable.d, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %sel = select <4 x i1> %cond, <4 x i32> %lhs, <4 x i32> %rhs
+  %fr = freeze <4 x i32> %sel
+  %ext = extractelement <4 x i32> %fr, i64 0
+  ret i32 %ext
+}
