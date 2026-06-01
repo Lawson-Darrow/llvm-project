@@ -1807,7 +1807,8 @@ protected:
 
 public:
   CopyRenderer(unsigned NewInsnID, RuleMatcher &RM, StringRef SymbolicName)
-      : OperandRenderer(OR_Copy), NewInsnID(NewInsnID), SymbolicName(SymbolicName) {
+      : OperandRenderer(OR_Copy), NewInsnID(NewInsnID),
+        SymbolicName(SymbolicName) {
     assert(!SymbolicName.empty() && "Cannot copy from an unspecified source");
     const OperandMatcher &Operand = RM.getOperandMatcher(SymbolicName);
     OldInsnID = Operand.getInstructionMatcher().getInsnVarID();
@@ -1821,10 +1822,9 @@ public:
 
   StringRef getSymbolicName() const { return SymbolicName; }
 
-  static void emitRenderOpcodes(MatchTable &Table,
-                                unsigned NewInsnID, unsigned OldInsnID,
-                                unsigned OpIdx, StringRef Name,
-                                bool ForVariadic = false);
+  static void emitRenderOpcodes(MatchTable &Table, unsigned NewInsnID,
+                                unsigned OldInsnID, unsigned OpIdx,
+                                StringRef Name, bool ForVariadic = false);
 
   void emitRenderOpcodes(MatchTable &Table) const override;
 };
@@ -1842,9 +1842,9 @@ public:
   CopyPhysRegRenderer(unsigned NewInsnID, RuleMatcher &RM, const Record *Reg)
       : OperandRenderer(OR_CopyPhysReg), NewInsnID(NewInsnID), PhysReg(Reg) {
     assert(PhysReg);
-   const OperandMatcher &Operand = RM.getPhysRegOperandMatcher(PhysReg);
-   OldInsnID = Operand.getInstructionMatcher().getInsnVarID();
-   OldOpIdx = Operand.getOpIdx();
+    const OperandMatcher &Operand = RM.getPhysRegOperandMatcher(PhysReg);
+    OldInsnID = Operand.getInstructionMatcher().getInsnVarID();
+    OldOpIdx = Operand.getOpIdx();
   }
 
   static bool classof(const OperandRenderer *R) {
@@ -1869,7 +1869,8 @@ protected:
   unsigned OldOpIdx;
 
 public:
-  CopyOrAddZeroRegRenderer(unsigned NewInsnID, RuleMatcher &RM, StringRef SymbolicName,
+  CopyOrAddZeroRegRenderer(unsigned NewInsnID, RuleMatcher &RM,
+                           StringRef SymbolicName,
                            const Record *ZeroRegisterDef)
       : OperandRenderer(OR_CopyOrAddZeroReg), NewInsnID(NewInsnID),
         SymbolicName(SymbolicName), ZeroRegisterDef(ZeroRegisterDef) {
@@ -1899,12 +1900,13 @@ protected:
   unsigned OldInsnID;
 
 public:
-  CopyConstantAsImmRenderer(unsigned NewInsnID, RuleMatcher &RM, StringRef SymbolicName)
+  CopyConstantAsImmRenderer(unsigned NewInsnID, RuleMatcher &RM,
+                            StringRef SymbolicName)
       : OperandRenderer(OR_CopyConstantAsImm), NewInsnID(NewInsnID),
         SymbolicName(SymbolicName) {
-            InstructionMatcher &InsnMatcher = RM.getInstructionMatcher(SymbolicName);
-  OldInsnID = InsnMatcher.getInsnVarID();
-        }
+    InstructionMatcher &InsnMatcher = RM.getInstructionMatcher(SymbolicName);
+    OldInsnID = InsnMatcher.getInsnVarID();
+  }
 
   static bool classof(const OperandRenderer *R) {
     return R->getKind() == OR_CopyConstantAsImm;
@@ -1925,12 +1927,13 @@ protected:
   unsigned OldInsnID;
 
 public:
-  CopyFConstantAsFPImmRenderer(unsigned NewInsnID, RuleMatcher &RM, StringRef SymbolicName)
+  CopyFConstantAsFPImmRenderer(unsigned NewInsnID, RuleMatcher &RM,
+                               StringRef SymbolicName)
       : OperandRenderer(OR_CopyFConstantAsFPImm), NewInsnID(NewInsnID),
         SymbolicName(SymbolicName) {
-            InstructionMatcher &InsnMatcher = RM.getInstructionMatcher(SymbolicName);
-  OldInsnID = InsnMatcher.getInsnVarID();
-        }
+    InstructionMatcher &InsnMatcher = RM.getInstructionMatcher(SymbolicName);
+    OldInsnID = InsnMatcher.getInsnVarID();
+  }
 
   static bool classof(const OperandRenderer *R) {
     return R->getKind() == OR_CopyFConstantAsFPImm;
@@ -1955,14 +1958,14 @@ protected:
   unsigned OldOpIdx;
 
 public:
-  CopySubRegRenderer(unsigned NewInsnID, RuleMatcher &RM, StringRef SymbolicName,
-                     const CodeGenSubRegIndex *SubReg)
+  CopySubRegRenderer(unsigned NewInsnID, RuleMatcher &RM,
+                     StringRef SymbolicName, const CodeGenSubRegIndex *SubReg)
       : OperandRenderer(OR_CopySubReg), NewInsnID(NewInsnID),
         SymbolicName(SymbolicName), SubReg(SubReg) {
-            const OperandMatcher &Operand = RM.getOperandMatcher(SymbolicName);
- OldInsnID = Operand.getInstructionMatcher().getInsnVarID();
- OldOpIdx = Operand.getOpIdx();
-        }
+    const OperandMatcher &Operand = RM.getOperandMatcher(SymbolicName);
+    OldInsnID = Operand.getInstructionMatcher().getInsnVarID();
+    OldOpIdx = Operand.getOpIdx();
+  }
 
   static bool classof(const OperandRenderer *R) {
     return R->getKind() == OR_CopySubReg;
@@ -2044,8 +2047,8 @@ public:
     return R->getKind() == OR_Imm;
   }
 
-  static void emitAddImm(MatchTable &Table, unsigned InsnID,
-                         int64_t Imm, StringRef ImmName = "Imm");
+  static void emitAddImm(MatchTable &Table, unsigned InsnID, int64_t Imm,
+                         StringRef ImmName = "Imm");
 
   void emitRenderOpcodes(MatchTable &Table) const override;
 };
@@ -2134,9 +2137,9 @@ public:
                  StringRef SymbolicName)
       : OperandRenderer(OR_Custom), InsnID(InsnID), Renderer(Renderer),
         SymbolicName(SymbolicName) {
-            InstructionMatcher &InsnMatcher = RM.getInstructionMatcher(SymbolicName);
-  OldInsnID = InsnMatcher.getInsnVarID();
-        }
+    InstructionMatcher &InsnMatcher = RM.getInstructionMatcher(SymbolicName);
+    OldInsnID = InsnMatcher.getInsnVarID();
+  }
 
   static bool classof(const OperandRenderer *R) {
     return R->getKind() == OR_Custom;
@@ -2155,14 +2158,14 @@ protected:
   unsigned OldOpIdx;
 
 public:
-  CustomOperandRenderer(unsigned InsnID, RuleMatcher &RM, const Record &Renderer,
-                        StringRef SymbolicName)
+  CustomOperandRenderer(unsigned InsnID, RuleMatcher &RM,
+                        const Record &Renderer, StringRef SymbolicName)
       : OperandRenderer(OR_CustomOperand), InsnID(InsnID), Renderer(Renderer),
         SymbolicName(SymbolicName) {
-          const OperandMatcher &OM = RM.getOperandMatcher(SymbolicName);
-          OldInsnID = OM.getInsnVarID();
-          OldOpIdx = OM.getOpIdx();
-        }
+    const OperandMatcher &OM = RM.getOperandMatcher(SymbolicName);
+    OldInsnID = OM.getInsnVarID();
+    OldOpIdx = OM.getOpIdx();
+  }
 
   static bool classof(const OperandRenderer *R) {
     return R->getKind() == OR_CustomOperand;
@@ -2201,9 +2204,11 @@ public:
   /// Emit the MatchTable opcodes to implement the action.
   virtual void emitActionOpcodes(MatchTable &Table) const = 0;
 
-  /// If this opcode has an overload that can call GIR_Done directly, call \p OnDone, emit the opcode, and return true.
-  /// Otherwise, emit the normal action opcode and return false.
-  virtual bool emitActionOpcodesAndDone(MatchTable &Table, function_ref<void()> OnDone) const {
+  /// If this opcode has an overload that can call GIR_Done directly, call \p
+  /// OnDone, emit the opcode, and return true. Otherwise, emit the normal
+  /// action opcode and return false.
+  virtual bool emitActionOpcodesAndDone(MatchTable &Table,
+                                        function_ref<void()> OnDone) const {
     emitActionOpcodes(Table);
     return false;
   }
@@ -2242,7 +2247,7 @@ private:
   std::vector<const InstructionMatcher *> CopiedFlags;
   std::vector<StringRef> SetFlags;
   std::vector<StringRef> UnsetFlags;
-std::vector<unsigned> MergeInsnIDs;
+  std::vector<unsigned> MergeInsnIDs;
 
   /// True if the instruction can be built solely by mutating the opcode.
   bool canMutate(RuleMatcher &Rule, const InstructionMatcher *Insn) const;
@@ -2323,7 +2328,8 @@ public:
   }
 
   void emitActionOpcodes(MatchTable &Table) const override;
-  bool emitActionOpcodesAndDone(MatchTable &Table, function_ref<void()> OnDone) const override;
+  bool emitActionOpcodesAndDone(MatchTable &Table,
+                                function_ref<void()> OnDone) const override;
 };
 
 class ReplaceRegAction : public MatchAction {

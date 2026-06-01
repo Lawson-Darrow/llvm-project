@@ -835,15 +835,15 @@ void RuleMatcher::emit(MatchTable &Table) {
     }
 
     // Emit coverage right before the Done opcode>
-    auto EmitCoverage = [&]{
+    auto EmitCoverage = [&] {
       assert((Table.isWithCoverage() ? !Table.isCombiner() : true) &&
-            "Combiner tables don't support coverage!");
+             "Combiner tables don't support coverage!");
       if (Table.isWithCoverage())
         Table << MatchTable::Opcode("GIR_Coverage")
               << MatchTable::IntValue(4, RuleID) << MatchTable::LineBreak;
       else if (!Table.isCombiner())
         Table << MatchTable::Comment(
-                    ("GIR_Coverage, " + Twine(RuleID) + ",").str())
+                     ("GIR_Coverage, " + Twine(RuleID) + ",").str())
               << MatchTable::LineBreak;
     };
 
@@ -1669,10 +1669,9 @@ OperandRenderer::~OperandRenderer() = default;
 
 //===- CopyRenderer -------------------------------------------------------===//
 
-void CopyRenderer::emitRenderOpcodes(MatchTable &Table,
-                                     unsigned NewInsnID, unsigned OldInsnID,
-                                     unsigned OldOpIdx, StringRef Name,
-                                     bool ForVariadic) {
+void CopyRenderer::emitRenderOpcodes(MatchTable &Table, unsigned NewInsnID,
+                                     unsigned OldInsnID, unsigned OldOpIdx,
+                                     StringRef Name, bool ForVariadic) {
   if (!ForVariadic && NewInsnID == 0 && OldInsnID == 0) {
     Table << MatchTable::Opcode("GIR_RootToRootCopy");
   } else {
@@ -1688,15 +1687,15 @@ void CopyRenderer::emitRenderOpcodes(MatchTable &Table,
 }
 
 void CopyRenderer::emitRenderOpcodes(MatchTable &Table) const {
-  emitRenderOpcodes(Table, NewInsnID, OldInsnID, OldOpIdx,
-                    SymbolicName, OldOpIsVariadic);
+  emitRenderOpcodes(Table, NewInsnID, OldInsnID, OldOpIdx, SymbolicName,
+                    OldOpIsVariadic);
 }
 
 //===- CopyPhysRegRenderer ------------------------------------------------===//
 
 void CopyPhysRegRenderer::emitRenderOpcodes(MatchTable &Table) const {
-  CopyRenderer::emitRenderOpcodes(Table, NewInsnID, OldInsnID,
-                                  OldOpIdx, PhysReg->getName());
+  CopyRenderer::emitRenderOpcodes(Table, NewInsnID, OldInsnID, OldOpIdx,
+                                  PhysReg->getName());
 }
 
 //===- CopyOrAddZeroRegRenderer -------------------------------------------===//
@@ -1706,8 +1705,7 @@ void CopyOrAddZeroRegRenderer::emitRenderOpcodes(MatchTable &Table) const {
         << MatchTable::Comment("NewInsnID")
         << MatchTable::ULEB128Value(NewInsnID)
         << MatchTable::Comment("OldInsnID")
-        << MatchTable::ULEB128Value(OldInsnID)
-        << MatchTable::Comment("OpIdx")
+        << MatchTable::ULEB128Value(OldInsnID) << MatchTable::Comment("OpIdx")
         << MatchTable::ULEB128Value(OldOpIdx)
         << MatchTable::NamedValue(
                2,
@@ -1748,8 +1746,7 @@ void CopySubRegRenderer::emitRenderOpcodes(MatchTable &Table) const {
         << MatchTable::Comment("NewInsnID")
         << MatchTable::ULEB128Value(NewInsnID)
         << MatchTable::Comment("OldInsnID")
-        << MatchTable::ULEB128Value(OldInsnID)
-        << MatchTable::Comment("OpIdx")
+        << MatchTable::ULEB128Value(OldInsnID) << MatchTable::Comment("OpIdx")
         << MatchTable::ULEB128Value(OldOpIdx)
         << MatchTable::Comment("SubRegIdx")
         << MatchTable::IntValue(2, SubReg->EnumValue)
@@ -1827,8 +1824,8 @@ void TempRegRenderer::emitRenderOpcodes(MatchTable &Table) const {
 
 //===- ImmRenderer --------------------------------------------------------===//
 
-void ImmRenderer::emitAddImm(MatchTable &Table,
-                             unsigned InsnID, int64_t Imm, StringRef ImmName) {
+void ImmRenderer::emitAddImm(MatchTable &Table, unsigned InsnID, int64_t Imm,
+                             StringRef ImmName) {
   const bool IsInt8 = isInt<8>(Imm);
 
   Table << MatchTable::Opcode(IsInt8 ? "GIR_AddImm8" : "GIR_AddImm")
@@ -1854,8 +1851,7 @@ void ImmRenderer::emitRenderOpcodes(MatchTable &Table) const {
 //===- SubRegIndexRenderer ------------------------------------------------===//
 
 void SubRegIndexRenderer::emitRenderOpcodes(MatchTable &Table) const {
-  ImmRenderer::emitAddImm(Table, InsnID, SubRegIdx->EnumValue,
-                          "SubRegIndex");
+  ImmRenderer::emitAddImm(Table, InsnID, SubRegIdx->EnumValue, "SubRegIndex");
 }
 
 //===- RenderComplexPatternOperand ----------------------------------------===//
@@ -1905,8 +1901,7 @@ void CustomOperandRenderer::emitRenderOpcodes(MatchTable &Table) const {
   Table << MatchTable::Opcode("GIR_CustomOperandRenderer")
         << MatchTable::Comment("InsnID") << MatchTable::ULEB128Value(InsnID)
         << MatchTable::Comment("OldInsnID")
-        << MatchTable::ULEB128Value(OldInsnID)
-        << MatchTable::Comment("OpIdx")
+        << MatchTable::ULEB128Value(OldInsnID) << MatchTable::Comment("OpIdx")
         << MatchTable::ULEB128Value(OldOpIdx)
         << MatchTable::Comment("OperandRenderer")
         << MatchTable::NamedValue(
@@ -2081,7 +2076,8 @@ void EraseInstAction::emitActionOpcodes(MatchTable &Table) const {
         << MatchTable::LineBreak;
 }
 
-bool EraseInstAction::emitActionOpcodesAndDone(MatchTable &Table, function_ref<void()> OnDone) const {
+bool EraseInstAction::emitActionOpcodesAndDone(
+    MatchTable &Table, function_ref<void()> OnDone) const {
   if (InsnID != 0) {
     emitActionOpcodes(Table);
     return false;

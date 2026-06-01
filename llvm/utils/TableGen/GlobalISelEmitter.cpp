@@ -1329,8 +1329,8 @@ Error GlobalISelEmitter::importNamedNodeRenderer(
 
     if (R->isSubClassOf("RegisterOperand") &&
         !R->isValueUnset("GIZeroRegister")) {
-      MIBuilder.addRenderer<CopyOrAddZeroRegRenderer>(M,
-          NodeName, R->getValueAsDef("GIZeroRegister"));
+      MIBuilder.addRenderer<CopyOrAddZeroRegRenderer>(
+          M, NodeName, R->getValueAsDef("GIZeroRegister"));
       return Error::success();
     }
 
@@ -1351,7 +1351,7 @@ Error GlobalISelEmitter::importNamedNodeRenderer(
   // TODO: Remove this check and add CopyRenderer unconditionally.
   // TODO: Handle nodes with multiple results (provided they can reach here).
   if (isa<UnsetInit>(N.getLeafValue())) {
-    MIBuilder.addRenderer<CopyRenderer>(M,NodeName);
+    MIBuilder.addRenderer<CopyRenderer>(M, NodeName);
     return Error::success();
   }
 
