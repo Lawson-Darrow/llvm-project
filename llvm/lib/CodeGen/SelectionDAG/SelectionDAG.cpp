@@ -5684,8 +5684,8 @@ bool SelectionDAG::isGuaranteedNotToBeUndefOrPoison(SDValue Op,
       APInt DemandedSubElts =
           DemandedElts.extractBits(NumSubElts, i * NumSubElts);
       if (!!DemandedSubElts &&
-          !isGuaranteedNotToBeUndefOrPoison(Op.getOperand(i),
-                                            DemandedSubElts, Kind, Depth + 1))
+          !isGuaranteedNotToBeUndefOrPoison(Op.getOperand(i), DemandedSubElts,
+                                            Kind, Depth + 1))
         return false;
     }
     return true;
