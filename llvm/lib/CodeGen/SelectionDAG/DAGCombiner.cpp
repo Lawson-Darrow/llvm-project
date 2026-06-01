@@ -29557,9 +29557,8 @@ SDValue DAGCombiner::visitINSERT_SUBVECTOR(SDNode *N) {
         if (RelativeIdx % NumInsElts == 0 &&
             RelativeIdx + NumInsElts <= NumConcatOpElts) {
           SmallVector<SDValue, 8> Ops(N0->ops());
-          Ops[ConcatOpIdx] = DAG.getNode(
-              ISD::INSERT_SUBVECTOR, SDLoc(N), ConcatOpVT, Ops[ConcatOpIdx],
-              N1, DAG.getVectorIdxConstant(RelativeIdx, SDLoc(N)));
+          Ops[ConcatOpIdx] = DAG.getInsertSubvector(SDLoc(N), Ops[ConcatOpIdx],
+                                                    N1, RelativeIdx);
           return DAG.getNode(ISD::CONCAT_VECTORS, SDLoc(N), VT, Ops);
         }
       }
