@@ -2,12 +2,14 @@
 ; RUN: llc -O2 -global-isel=0 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx950 \
 ; RUN:   -verify-machineinstrs -stop-after=amdgpu-isel < %s | FileCheck %s \
 ; RUN:   --check-prefix=COMBINE \
-; RUN:   --implicit-check-not=V_ADD_U64_PSEUDO --implicit-check-not=REG_SEQUENCE
+; RUN:   --implicit-check-not=V_ADD_U64_PSEUDO --implicit-check-not=V_ADD_U32 \
+; RUN:   --implicit-check-not=REG_SEQUENCE
 ; RUN: llc -O2 -global-isel=0 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx950 \
 ; RUN:   -verify-machineinstrs -combiner-disabled -stop-after=amdgpu-isel < %s \
 ; RUN:   | FileCheck %s --check-prefix=NOCOMBINE
 
 declare <4 x i32> @llvm.vector.extract.v4i32.v8i32(<8 x i32>, i64 immarg)
+declare <2 x i32> @llvm.vector.extract.v2i32.v4i32(<4 x i32>, i64 immarg)
 
 define <4 x i32> @freeze_extract_bitcast_demanded(<2 x i64> %a, <2 x i64> %b) nounwind {
   ; COMBINE-LABEL: name: freeze_extract_bitcast_demanded
@@ -98,5 +100,228 @@ define <4 x i32> @freeze_extract_bitcast_demanded(<2 x i64> %a, <2 x i64> %b) no
   %shifted = lshr <8 x i32> %bc, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
   %fr = freeze <8 x i32> %shifted
   %ext = call <4 x i32> @llvm.vector.extract.v4i32.v8i32(<8 x i32> %fr, i64 0)
+  ret <4 x i32> %ext
+}
+
+define <4 x i32> @freeze_extract_bitcast_high_demanded(<2 x i64> %a, <2 x i64> %b) nounwind {
+  ; COMBINE-LABEL: name: freeze_extract_bitcast_high_demanded
+  ; COMBINE: bb.0 (%ir-block.0):
+  ; COMBINE-NEXT:   liveins: $vgpr4, $vgpr5, $vgpr6, $vgpr7
+  ; COMBINE-NEXT: {{  $}}
+  ; COMBINE-NEXT:   [[COPY:%[0-9]+]]:vgpr_32 = COPY $vgpr7
+  ; COMBINE-NEXT:   [[COPY1:%[0-9]+]]:vgpr_32 = COPY $vgpr6
+  ; COMBINE-NEXT:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY $vgpr5
+  ; COMBINE-NEXT:   [[COPY3:%[0-9]+]]:vgpr_32 = COPY $vgpr4
+  ; COMBINE-NEXT:   [[S_MOV_B32_:%[0-9]+]]:sreg_32 = S_MOV_B32 1
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY3]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_1:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY2]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_2:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY1]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_3:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY]], implicit $exec
+  ; COMBINE-NEXT:   $vgpr0 = COPY [[V_LSHRREV_B32_e64_]]
+  ; COMBINE-NEXT:   $vgpr1 = COPY [[V_LSHRREV_B32_e64_1]]
+  ; COMBINE-NEXT:   $vgpr2 = COPY [[V_LSHRREV_B32_e64_2]]
+  ; COMBINE-NEXT:   $vgpr3 = COPY [[V_LSHRREV_B32_e64_3]]
+  ; COMBINE-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
+  ;
+  ; NOCOMBINE-LABEL: name: freeze_extract_bitcast_high_demanded
+  ; NOCOMBINE: bb.0 (%ir-block.0):
+  ; NOCOMBINE-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5, $vgpr6, $vgpr7
+  ; NOCOMBINE-NEXT: {{  $}}
+  ; NOCOMBINE-NEXT:   [[COPY:%[0-9]+]]:vgpr_32 = COPY $vgpr7
+  ; NOCOMBINE-NEXT:   [[COPY1:%[0-9]+]]:vgpr_32 = COPY $vgpr6
+  ; NOCOMBINE-NEXT:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY $vgpr5
+  ; NOCOMBINE-NEXT:   [[COPY3:%[0-9]+]]:vgpr_32 = COPY $vgpr4
+  ; NOCOMBINE-NEXT:   [[COPY4:%[0-9]+]]:vgpr_32 = COPY $vgpr3
+  ; NOCOMBINE-NEXT:   [[COPY5:%[0-9]+]]:vgpr_32 = COPY $vgpr2
+  ; NOCOMBINE-NEXT:   [[COPY6:%[0-9]+]]:vgpr_32 = COPY $vgpr1
+  ; NOCOMBINE-NEXT:   [[COPY7:%[0-9]+]]:vgpr_32 = COPY $vgpr0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE:%[0-9]+]]:vreg_64_align2 = REG_SEQUENCE [[COPY1]], %subreg.sub0, [[COPY]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[COPY8:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY9:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE]].sub0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE1:%[0-9]+]]:vreg_64_align2 = REG_SEQUENCE [[COPY3]], %subreg.sub0, [[COPY2]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[COPY10:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE1]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY11:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE1]].sub0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE2:%[0-9]+]]:vreg_64_align2 = REG_SEQUENCE [[COPY5]], %subreg.sub0, [[COPY4]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_:%[0-9]+]]:sreg_32 = S_MOV_B32 2147483647
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_1:%[0-9]+]]:sreg_32 = S_MOV_B32 -1
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE3:%[0-9]+]]:sreg_64 = REG_SEQUENCE killed [[S_MOV_B32_1]], %subreg.sub0, killed [[S_MOV_B32_]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[V_ADD_U:%[0-9]+]]:vreg_64_align2 = nsw V_ADD_U64_PSEUDO killed [[REG_SEQUENCE2]], [[REG_SEQUENCE3]], implicit-def dead $vcc, implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY12:%[0-9]+]]:av_32 = COPY [[V_ADD_U]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY13:%[0-9]+]]:av_32 = COPY [[V_ADD_U]].sub0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE4:%[0-9]+]]:vreg_64_align2 = REG_SEQUENCE [[COPY7]], %subreg.sub0, [[COPY6]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[V_ADD_U1:%[0-9]+]]:vreg_64_align2 = nsw V_ADD_U64_PSEUDO killed [[REG_SEQUENCE4]], [[REG_SEQUENCE3]], implicit-def dead $vcc, implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY14:%[0-9]+]]:av_32 = COPY [[V_ADD_U1]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY15:%[0-9]+]]:av_32 = COPY [[V_ADD_U1]].sub0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE5:%[0-9]+]]:av_256_align2 = REG_SEQUENCE killed [[COPY15]], %subreg.sub0, killed [[COPY14]], %subreg.sub1, killed [[COPY13]], %subreg.sub2, killed [[COPY12]], %subreg.sub3, killed [[COPY11]], %subreg.sub4, killed [[COPY10]], %subreg.sub5, killed [[COPY9]], %subreg.sub6, killed [[COPY8]], %subreg.sub7
+  ; NOCOMBINE-NEXT:   [[COPY16:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub7
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_2:%[0-9]+]]:sreg_32 = S_MOV_B32 1
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY16]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY17:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub6
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_1:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY17]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY18:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub5
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_2:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY18]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY19:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub4
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_3:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY19]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY20:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub3
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_4:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY20]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY21:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub2
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_5:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY21]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY22:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub1
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_6:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY22]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY23:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE5]].sub0
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_7:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_2]], killed [[COPY23]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE6:%[0-9]+]]:vreg_256_align2 = REG_SEQUENCE killed [[V_LSHRREV_B32_e64_7]], %subreg.sub0, killed [[V_LSHRREV_B32_e64_6]], %subreg.sub1, killed [[V_LSHRREV_B32_e64_5]], %subreg.sub2, killed [[V_LSHRREV_B32_e64_4]], %subreg.sub3, killed [[V_LSHRREV_B32_e64_3]], %subreg.sub4, killed [[V_LSHRREV_B32_e64_2]], %subreg.sub5, killed [[V_LSHRREV_B32_e64_1]], %subreg.sub6, killed [[V_LSHRREV_B32_e64_]], %subreg.sub7
+  ; NOCOMBINE-NEXT:   [[COPY24:%[0-9]+]]:av_256_align2 = COPY killed [[REG_SEQUENCE6]]
+  ; NOCOMBINE-NEXT:   [[COPY25:%[0-9]+]]:av_32 = COPY [[COPY24]].sub7
+  ; NOCOMBINE-NEXT:   [[COPY26:%[0-9]+]]:av_32 = COPY [[COPY24]].sub6
+  ; NOCOMBINE-NEXT:   [[COPY27:%[0-9]+]]:av_32 = COPY [[COPY24]].sub5
+  ; NOCOMBINE-NEXT:   [[COPY28:%[0-9]+]]:av_32 = COPY [[COPY24]].sub4
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE7:%[0-9]+]]:av_128_align2 = REG_SEQUENCE killed [[COPY28]], %subreg.sub0, killed [[COPY27]], %subreg.sub1, killed [[COPY26]], %subreg.sub2, killed [[COPY25]], %subreg.sub3
+  ; NOCOMBINE-NEXT:   [[COPY29:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE7]].sub0
+  ; NOCOMBINE-NEXT:   [[COPY30:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE7]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY31:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE7]].sub2
+  ; NOCOMBINE-NEXT:   [[COPY32:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE7]].sub3
+  ; NOCOMBINE-NEXT:   $vgpr0 = COPY [[COPY29]]
+  ; NOCOMBINE-NEXT:   $vgpr1 = COPY [[COPY30]]
+  ; NOCOMBINE-NEXT:   $vgpr2 = COPY [[COPY31]]
+  ; NOCOMBINE-NEXT:   $vgpr3 = COPY [[COPY32]]
+  ; NOCOMBINE-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
+  %poisonable = add nsw <2 x i64> %a, <i64 9223372036854775807, i64 9223372036854775807>
+  %wide = shufflevector <2 x i64> %poisonable, <2 x i64> %b, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %bc = bitcast <4 x i64> %wide to <8 x i32>
+  %shifted = lshr <8 x i32> %bc, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+  %fr = freeze <8 x i32> %shifted
+  %ext = call <4 x i32> @llvm.vector.extract.v4i32.v8i32(<8 x i32> %fr, i64 4)
+  ret <4 x i32> %ext
+}
+
+define <2 x i32> @freeze_extract_bitcast_small_to_large_demanded(<4 x i16> %a, <4 x i16> %b) nounwind {
+  ; COMBINE-LABEL: name: freeze_extract_bitcast_small_to_large_demanded
+  ; COMBINE: bb.0 (%ir-block.0):
+  ; COMBINE-NEXT:   liveins: $vgpr0, $vgpr1
+  ; COMBINE-NEXT: {{  $}}
+  ; COMBINE-NEXT:   [[COPY:%[0-9]+]]:vgpr_32 = COPY $vgpr1
+  ; COMBINE-NEXT:   [[COPY1:%[0-9]+]]:vgpr_32 = COPY $vgpr0
+  ; COMBINE-NEXT:   [[S_MOV_B32_:%[0-9]+]]:sreg_32 = S_MOV_B32 1
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY1]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_1:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY]], implicit $exec
+  ; COMBINE-NEXT:   $vgpr0 = COPY [[V_LSHRREV_B32_e64_]]
+  ; COMBINE-NEXT:   $vgpr1 = COPY [[V_LSHRREV_B32_e64_1]]
+  ; COMBINE-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1
+  ;
+  ; NOCOMBINE-LABEL: name: freeze_extract_bitcast_small_to_large_demanded
+  ; NOCOMBINE: bb.0 (%ir-block.0):
+  ; NOCOMBINE-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3
+  ; NOCOMBINE-NEXT: {{  $}}
+  ; NOCOMBINE-NEXT:   [[COPY:%[0-9]+]]:vgpr_32 = COPY $vgpr3
+  ; NOCOMBINE-NEXT:   [[COPY1:%[0-9]+]]:vgpr_32 = COPY $vgpr2
+  ; NOCOMBINE-NEXT:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY $vgpr1
+  ; NOCOMBINE-NEXT:   [[COPY3:%[0-9]+]]:vgpr_32 = COPY $vgpr0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE:%[0-9]+]]:vreg_64_align2 = REG_SEQUENCE [[COPY3]], %subreg.sub0, [[COPY2]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_:%[0-9]+]]:sreg_32 = S_MOV_B32 2147450879
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE1:%[0-9]+]]:sreg_64 = REG_SEQUENCE [[S_MOV_B32_]], %subreg.sub0, [[S_MOV_B32_]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[COPY4:%[0-9]+]]:sreg_32 = COPY [[REG_SEQUENCE1]].sub1
+  ; NOCOMBINE-NEXT:   [[V_PK_ADD_U16_:%[0-9]+]]:vgpr_32 = nsw V_PK_ADD_U16 8, [[COPY]], 8, killed [[COPY4]], 0, 0, 0, 0, 0, implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY5:%[0-9]+]]:sreg_32 = COPY [[REG_SEQUENCE1]].sub0
+  ; NOCOMBINE-NEXT:   [[V_PK_ADD_U16_1:%[0-9]+]]:vgpr_32 = nsw V_PK_ADD_U16 8, [[COPY1]], 8, killed [[COPY5]], 0, 0, 0, 0, 0, implicit $exec
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE2:%[0-9]+]]:vreg_64_align2 = REG_SEQUENCE killed [[V_PK_ADD_U16_1]], %subreg.sub0, killed [[V_PK_ADD_U16_]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[COPY6:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE2]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY7:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE2]].sub0
+  ; NOCOMBINE-NEXT:   [[COPY8:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY9:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE]].sub0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE3:%[0-9]+]]:av_128_align2 = REG_SEQUENCE killed [[COPY9]], %subreg.sub0, killed [[COPY8]], %subreg.sub1, killed [[COPY7]], %subreg.sub2, killed [[COPY6]], %subreg.sub3
+  ; NOCOMBINE-NEXT:   [[COPY10:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE3]].sub3
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_1:%[0-9]+]]:sreg_32 = S_MOV_B32 1
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY10]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY11:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE3]].sub2
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_1:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY11]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY12:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE3]].sub1
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_2:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY12]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY13:%[0-9]+]]:vgpr_32 = COPY [[REG_SEQUENCE3]].sub0
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_3:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY13]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE4:%[0-9]+]]:vreg_128_align2 = REG_SEQUENCE killed [[V_LSHRREV_B32_e64_3]], %subreg.sub0, killed [[V_LSHRREV_B32_e64_2]], %subreg.sub1, killed [[V_LSHRREV_B32_e64_1]], %subreg.sub2, killed [[V_LSHRREV_B32_e64_]], %subreg.sub3
+  ; NOCOMBINE-NEXT:   [[COPY14:%[0-9]+]]:av_128_align2 = COPY killed [[REG_SEQUENCE4]]
+  ; NOCOMBINE-NEXT:   [[COPY15:%[0-9]+]]:av_32 = COPY [[COPY14]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY16:%[0-9]+]]:av_32 = COPY [[COPY14]].sub0
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE5:%[0-9]+]]:av_64_align2 = REG_SEQUENCE killed [[COPY16]], %subreg.sub0, killed [[COPY15]], %subreg.sub1
+  ; NOCOMBINE-NEXT:   [[COPY17:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE5]].sub0
+  ; NOCOMBINE-NEXT:   [[COPY18:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE5]].sub1
+  ; NOCOMBINE-NEXT:   $vgpr0 = COPY [[COPY17]]
+  ; NOCOMBINE-NEXT:   $vgpr1 = COPY [[COPY18]]
+  ; NOCOMBINE-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1
+  %poisonable = add nsw <4 x i16> %b, <i16 32767, i16 32767, i16 32767, i16 32767>
+  %wide = shufflevector <4 x i16> %a, <4 x i16> %poisonable, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
+  %bc = bitcast <8 x i16> %wide to <4 x i32>
+  %shifted = lshr <4 x i32> %bc, <i32 1, i32 1, i32 1, i32 1>
+  %fr = freeze <4 x i32> %shifted
+  %ext = call <2 x i32> @llvm.vector.extract.v2i32.v4i32(<4 x i32> %fr, i64 0)
+  ret <2 x i32> %ext
+}
+
+define <4 x i32> @freeze_extract_bitcast_same_size_demanded(<4 x i32> %a, <4 x i32> %b) nounwind {
+  ; COMBINE-LABEL: name: freeze_extract_bitcast_same_size_demanded
+  ; COMBINE: bb.0 (%ir-block.0):
+  ; COMBINE-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3
+  ; COMBINE-NEXT: {{  $}}
+  ; COMBINE-NEXT:   [[COPY:%[0-9]+]]:vgpr_32 = COPY $vgpr3
+  ; COMBINE-NEXT:   [[COPY1:%[0-9]+]]:vgpr_32 = COPY $vgpr2
+  ; COMBINE-NEXT:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY $vgpr1
+  ; COMBINE-NEXT:   [[COPY3:%[0-9]+]]:vgpr_32 = COPY $vgpr0
+  ; COMBINE-NEXT:   [[S_MOV_B32_:%[0-9]+]]:sreg_32 = S_MOV_B32 1
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY3]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_1:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY2]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_2:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY1]], implicit $exec
+  ; COMBINE-NEXT:   [[V_LSHRREV_B32_e64_3:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_]], [[COPY]], implicit $exec
+  ; COMBINE-NEXT:   $vgpr0 = COPY [[V_LSHRREV_B32_e64_]]
+  ; COMBINE-NEXT:   $vgpr1 = COPY [[V_LSHRREV_B32_e64_1]]
+  ; COMBINE-NEXT:   $vgpr2 = COPY [[V_LSHRREV_B32_e64_2]]
+  ; COMBINE-NEXT:   $vgpr3 = COPY [[V_LSHRREV_B32_e64_3]]
+  ; COMBINE-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
+  ;
+  ; NOCOMBINE-LABEL: name: freeze_extract_bitcast_same_size_demanded
+  ; NOCOMBINE: bb.0 (%ir-block.0):
+  ; NOCOMBINE-NEXT:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5, $vgpr6, $vgpr7
+  ; NOCOMBINE-NEXT: {{  $}}
+  ; NOCOMBINE-NEXT:   [[COPY:%[0-9]+]]:vgpr_32 = COPY $vgpr7
+  ; NOCOMBINE-NEXT:   [[COPY1:%[0-9]+]]:vgpr_32 = COPY $vgpr6
+  ; NOCOMBINE-NEXT:   [[COPY2:%[0-9]+]]:vgpr_32 = COPY $vgpr5
+  ; NOCOMBINE-NEXT:   [[COPY3:%[0-9]+]]:vgpr_32 = COPY $vgpr4
+  ; NOCOMBINE-NEXT:   [[COPY4:%[0-9]+]]:vgpr_32 = COPY $vgpr3
+  ; NOCOMBINE-NEXT:   [[COPY5:%[0-9]+]]:vgpr_32 = COPY $vgpr2
+  ; NOCOMBINE-NEXT:   [[COPY6:%[0-9]+]]:vgpr_32 = COPY $vgpr1
+  ; NOCOMBINE-NEXT:   [[COPY7:%[0-9]+]]:vgpr_32 = COPY $vgpr0
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_:%[0-9]+]]:sreg_32 = S_MOV_B32 2147483647
+  ; NOCOMBINE-NEXT:   [[V_ADD_U32_e64_:%[0-9]+]]:vgpr_32 = nsw V_ADD_U32_e64 [[COPY]], [[S_MOV_B32_]], 0, implicit $exec
+  ; NOCOMBINE-NEXT:   [[V_ADD_U32_e64_1:%[0-9]+]]:vgpr_32 = nsw V_ADD_U32_e64 [[COPY1]], [[S_MOV_B32_]], 0, implicit $exec
+  ; NOCOMBINE-NEXT:   [[V_ADD_U32_e64_2:%[0-9]+]]:vgpr_32 = nsw V_ADD_U32_e64 [[COPY2]], [[S_MOV_B32_]], 0, implicit $exec
+  ; NOCOMBINE-NEXT:   [[V_ADD_U32_e64_3:%[0-9]+]]:vgpr_32 = nsw V_ADD_U32_e64 [[COPY3]], [[S_MOV_B32_]], 0, implicit $exec
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE:%[0-9]+]]:vreg_256_align2 = REG_SEQUENCE [[COPY7]], %subreg.sub0, [[COPY6]], %subreg.sub1, [[COPY5]], %subreg.sub2, [[COPY4]], %subreg.sub3, killed [[V_ADD_U32_e64_3]], %subreg.sub4, killed [[V_ADD_U32_e64_2]], %subreg.sub5, killed [[V_ADD_U32_e64_1]], %subreg.sub6, killed [[V_ADD_U32_e64_]], %subreg.sub7
+  ; NOCOMBINE-NEXT:   [[COPY8:%[0-9]+]]:av_256_align2 = COPY killed [[REG_SEQUENCE]]
+  ; NOCOMBINE-NEXT:   [[COPY9:%[0-9]+]]:vgpr_32 = COPY [[COPY8]].sub3
+  ; NOCOMBINE-NEXT:   [[S_MOV_B32_1:%[0-9]+]]:sreg_32 = S_MOV_B32 1
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY9]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY10:%[0-9]+]]:vgpr_32 = COPY [[COPY8]].sub2
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_1:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY10]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY11:%[0-9]+]]:vgpr_32 = COPY [[COPY8]].sub1
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_2:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY11]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[COPY12:%[0-9]+]]:vgpr_32 = COPY [[COPY8]].sub0
+  ; NOCOMBINE-NEXT:   [[V_LSHRREV_B32_e64_3:%[0-9]+]]:vgpr_32 = V_LSHRREV_B32_e64 [[S_MOV_B32_1]], killed [[COPY12]], implicit $exec
+  ; NOCOMBINE-NEXT:   [[REG_SEQUENCE1:%[0-9]+]]:vreg_128_align2 = REG_SEQUENCE killed [[V_LSHRREV_B32_e64_3]], %subreg.sub0, killed [[V_LSHRREV_B32_e64_2]], %subreg.sub1, killed [[V_LSHRREV_B32_e64_1]], %subreg.sub2, killed [[V_LSHRREV_B32_e64_]], %subreg.sub3
+  ; NOCOMBINE-NEXT:   [[COPY13:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE1]].sub0
+  ; NOCOMBINE-NEXT:   [[COPY14:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE1]].sub1
+  ; NOCOMBINE-NEXT:   [[COPY15:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE1]].sub2
+  ; NOCOMBINE-NEXT:   [[COPY16:%[0-9]+]]:av_32 = COPY [[REG_SEQUENCE1]].sub3
+  ; NOCOMBINE-NEXT:   $vgpr0 = COPY [[COPY13]]
+  ; NOCOMBINE-NEXT:   $vgpr1 = COPY [[COPY14]]
+  ; NOCOMBINE-NEXT:   $vgpr2 = COPY [[COPY15]]
+  ; NOCOMBINE-NEXT:   $vgpr3 = COPY [[COPY16]]
+  ; NOCOMBINE-NEXT:   SI_RETURN implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3
+  %poisonable = add nsw <4 x i32> %b, <i32 2147483647, i32 2147483647, i32 2147483647, i32 2147483647>
+  %wide = shufflevector <4 x i32> %a, <4 x i32> %poisonable, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
+  %bc = bitcast <8 x i32> %wide to <8 x float>
+  %fr = freeze <8 x float> %bc
+  %as.i32 = bitcast <8 x float> %fr to <8 x i32>
+  %shifted = lshr <8 x i32> %as.i32, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+  %ext = call <4 x i32> @llvm.vector.extract.v4i32.v8i32(<8 x i32> %shifted, i64 0)
   ret <4 x i32> %ext
 }
