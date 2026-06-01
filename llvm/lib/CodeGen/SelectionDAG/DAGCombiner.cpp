@@ -27583,9 +27583,8 @@ static SDValue foldExtractSubvectorFromConcatVectors(EVT NVT, SDValue V,
       return SDValue();
     assert(NewExtIdx % ExtNumElts == 0 &&
            "Extract index is not a multiple of the input vector length.");
-    SDValue NewIndexC = DAG.getVectorIdxConstant(NewExtIdx, DL);
-    return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, NVT,
-                       V.getOperand(ConcatOpIdx), NewIndexC);
+    return DAG.getExtractSubvector(DL, NVT, V.getOperand(ConcatOpIdx),
+                                   NewExtIdx);
   }
 
   // If the extract covers multiple whole concat operands, rebuild that smaller
@@ -27714,9 +27713,8 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     }
   }
 
-  if (SDValue Folded =
-          foldExtractSubvectorFromConcatVectors(NVT, V, ExtIdx, DL, DAG,
-                                                LegalOperations))
+  if (SDValue Folded = foldExtractSubvectorFromConcatVectors(
+          NVT, V, ExtIdx, DL, DAG, LegalOperations))
     return Folded;
 
   if (SDValue Shuffle = foldExtractSubvectorFromShuffleVector(
