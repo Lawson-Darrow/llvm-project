@@ -27569,11 +27569,8 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
         NewExtIdx % NVT.getVectorMinNumElements() == 0 &&
         TLI.isExtractSubvectorCheap(NVT, V.getOperand(0).getValueType(),
                                     NewExtIdx) &&
-        TLI.isOperationLegalOrCustom(ISD::EXTRACT_SUBVECTOR, NVT)) {
-      SDValue NewIndex = DAG.getVectorIdxConstant(NewExtIdx, DL);
-      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, NVT, V.getOperand(0),
-                         NewIndex);
-    }
+        TLI.isOperationLegalOrCustom(ISD::EXTRACT_SUBVECTOR, NVT))
+      return DAG.getExtractSubvector(DL, NVT, V.getOperand(0), NewExtIdx);
   }
 
   // ty1 extract_vector(ty2 splat(V))) -> ty1 splat(V)
