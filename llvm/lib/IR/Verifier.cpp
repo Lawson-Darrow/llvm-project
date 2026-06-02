@@ -123,10 +123,12 @@
 #include "llvm/Support/ModRef.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Coroutines/CoroInstr.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -645,6 +647,7 @@ private:
   void verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
                            const Value *V, bool IsIntrinsic, bool IsInlineAsm);
   void verifyFunctionMetadata(ArrayRef<std::pair<unsigned, MDNode *>> MDs);
+  void verifyAMDGPUReqdWorkGroupSize(const Function &F);
   void verifyUnknownProfileMetadata(MDNode *MD);
   void visitConstantExprsRecursively(const Constant *EntryC);
   void visitConstantExpr(const ConstantExpr *CE);
@@ -2814,6 +2817,80 @@ void Verifier::verifyFunctionMetadata(
   }
 }
 
+void Verifier::verifyAMDGPUReqdWorkGroupSize(const Function &F) {
+  if (!TT.isAMDGPU())
+    return;
+
+  MDNode *ReqdWorkGroupSize = F.getMetadata("reqd_work_group_size");
+  if (!ReqdWorkGroupSize)
+    return;
+
+  Check(ReqdWorkGroupSize->getNumOperands() == 3,
+        "reqd_work_group_size must have exactly three operands", &F,
+        ReqdWorkGroupSize);
+  if (ReqdWorkGroupSize->getNumOperands() != 3)
+    return;
+
+  uint64_t Product = 1;
+  for (unsigned I = 0; I != 3; ++I) {
+    ConstantInt *C =
+        mdconst::dyn_extract<ConstantInt>(ReqdWorkGroupSize->getOperand(I));
+    Check(C, "reqd_work_group_size operands must be integer constants", &F,
+          ReqdWorkGroupSize);
+    if (!C)
+      return;
+
+    const APInt &Value = C->getValue();
+    Check(Value.getActiveBits() <= 64,
+          "reqd_work_group_size operands must fit in 64 bits", &F,
+          ReqdWorkGroupSize);
+    if (Value.getActiveBits() > 64)
+      return;
+
+    uint64_t Dim = Value.getZExtValue();
+    Check(Dim == 0 || Product <= std::numeric_limits<uint64_t>::max() / Dim,
+          "reqd_work_group_size product must fit in 64 bits", &F,
+          ReqdWorkGroupSize);
+    if (Dim != 0 && Product > std::numeric_limits<uint64_t>::max() / Dim)
+      return;
+    Product *= Dim;
+  }
+
+  Attribute FlatWorkGroupSize = F.getFnAttribute("amdgpu-flat-work-group-size");
+  Check(FlatWorkGroupSize.isValid(),
+        "reqd_work_group_size requires amdgpu-flat-work-group-size", &F,
+        ReqdWorkGroupSize);
+  if (!FlatWorkGroupSize.isValid())
+    return;
+
+  Check(FlatWorkGroupSize.isStringAttribute(),
+        "amdgpu-flat-work-group-size must be a string attribute", &F);
+  if (!FlatWorkGroupSize.isStringAttribute())
+    return;
+
+  auto ParseUnsigned = [](StringRef S, uint64_t &Value) {
+    S = S.trim();
+    return !S.empty() && !S.starts_with("-") && !S.getAsInteger(0, Value);
+  };
+
+  StringRef AttrValue = FlatWorkGroupSize.getValueAsString();
+  std::pair<StringRef, StringRef> Values = AttrValue.split(',');
+  uint64_t Min = 0;
+  uint64_t Max = 0;
+  bool Parsed = !Values.second.contains(',') &&
+                ParseUnsigned(Values.first, Min) &&
+                ParseUnsigned(Values.second, Max);
+  Check(Parsed,
+        "amdgpu-flat-work-group-size must be a pair of unsigned integers", &F);
+  if (!Parsed)
+    return;
+
+  Check(Min == Product && Max == Product,
+        "amdgpu-flat-work-group-size must equal the product of "
+        "reqd_work_group_size operands",
+        &F, ReqdWorkGroupSize);
+}
+
 void Verifier::visitConstantExprsRecursively(const Constant *EntryC) {
   if (EntryC->getNumOperands() == 0)
     return;
@@ -3284,6 +3361,7 @@ void Verifier::visitFunction(const Function &F) {
   F.getAllMetadata(MDs);
   assert(F.hasMetadata() != MDs.empty() && "Bit out-of-sync");
   verifyFunctionMetadata(MDs);
+  verifyAMDGPUReqdWorkGroupSize(F);
 
   // Check validity of the personality function
   if (F.hasPersonalityFn()) {
